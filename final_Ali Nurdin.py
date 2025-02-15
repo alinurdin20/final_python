@@ -1,78 +1,151 @@
-# Mengaktifkan database python
 import pandas as pd
+import matplotlib.pyplot as plt
+from PIL import Image
+import io
+import os
+import re
+from tabulate import tabulate
 
-# Membuat KELAS DataFrameOOP
-class DataFrameOOP :
-	# Atribut Kelas
-	def __init__(self):
-	# Inisialisasi DataFrame Awal
-		self.df=pd.DataFrame(
-			{ 'Nama' : [],
-			  'Kelas' : [],
-			  'Nilai' : []
-			})
-	# Method Kelas
-	def tambah(self):
-		jml_data = int(input("Berapa jumlah data yang ingin dimasukkan ? "))
-		for _ in range(jml_data):
-			Nama = input("Masukkan Nama : ")
-			Kelas = input("Masukkan Kelas : ")
-			Nilai = int(input("Masukkan Nilai : "))
-			# Menambah baris baru ke DataFrame
-			self.df.loc[len(self.df)] = [Nama,Kelas,Nilai]
-	def update(self):
-        # Membuat Kolom Ranking Nilai Tertinggi Ranking 1
-            self.df['Ranking'] = self.df['Nilai'].rank(ascending=False, method='dense').astype(int)
-        # Membuat Kolom Keterangan
-            self.df['Keterangan'] = self.df['Nilai'].apply(lambda x: "Tuntas" if x >= 80 else "Belum Tuntas")
-	def display_DataFrame(self):
-		# Menampikan Data Baru di DataFrame
-		print(" Data Terbaru ...")
-		print(self.df.sort_values('Ranking'))
-	def statistik(self):
-    # Mengambil data dari kolom 'Nilai' dan mengonversinya menjadi list.
-    # Pastikan nama kolom sesuai dengan yang ada di DataFrame (misalnya 'Nilai' dengan huruf kapital).
-            data = self.df['Nilai'].tolist()
+class DataSiswa:
+    FILE_PATH = os.path.join('D:\\python_Ali\\barCSV', 'dat1.csv')  
+    # Gunakan double backslash atau raw string (r'...')
 
-    # Jika list data kosong, tetapkan nilai default.
-            if not data:
-                    stats = {
-                        "total": 0,
-                        "rata_rata": 0,
-                        "maks": None,
-                        "min": None
-                     }
+    def __init__(self):
+        self.df = self.load_data()  # Inisialisasi DataFrame
+        
+    def tambah(self):
+        try:
+            jml_data = int(input("Masukkan jumlah data: "))
+        except ValueError:
+            print("Input jumlah data harus berupa angka.")
+            return
+
+        for _ in range(jml_data):
+            nama = self.validasi_input("Masukkan Nama: ", r'^[a-zA-Z\s]+$')
+            kelas = self.validasi_input("Masukkan Kelas: ", r'^[a-zA-Z\s]+$')
+            nilai = self.validasi_nilai("Masukkan nilai siswa (0-100): ")
+
+            new_data = pd.DataFrame({'nama': [nama], 'kelas': [kelas], 'nilai': [nilai]})
+            self.df = pd.concat([self.df, new_data], ignore_index=True)
+
+        self.simpan_data()
+
+    def load_data(self):
+        try:
+            df = pd.read_csv(self.FILE_PATH)
+            # Tangani NaN secara konsisten di load_data
+            df['nilai'].fillna(0, inplace=True)
+            return df
+        except FileNotFoundError:
+            print("File CSV tidak ditemukan. Membuat file baru.")
+            return pd.DataFrame(columns=['nama', 'kelas', 'nilai'])  # Mengembalikan DataFrame kosong
+        except pd.errors.EmptyDataError:
+            print("File CSV kosong. Membuat file baru.")
+            return pd.DataFrame(columns=['nama', 'kelas', 'nilai'])  # Mengembalikan DataFrame kosong
+        except Exception as e:  # Menangkap error umum
+            print(f"Terjadi kesalahan saat membaca file CSV: {e}")
+            return pd.DataFrame(columns=['nama', 'kelas', 'nilai'])  # Mengembalikan DataFrame kosong
+
+
+    def validasi_input(self, prompt, regex):
+        while True:
+            data = input(prompt)
+            if re.match(regex, data):
+                return data
             else:
-                    total = sum(data)
-                    rata_rata = total / len(data)
-                    maksimum = max(data)
-                    minimum = min(data)
-                    stats = {
-                        "total": total,
-                        "rata_rata": rata_rata,
-                        "maks": maksimum,
-                        "min": minimum
-                    }
+                print("Input tidak valid. Silakan coba lagi.")
+
+    def validasi_nilai(self, prompt):
+        while True:
+            try:
+                nilai = float(input(prompt))
+                if 0 <= nilai <= 100:
+                    return nilai
+                else:
+                    print("Nilai harus antara 0 dan 100.")
+            except ValueError:
+                print("Input harus berupa angka.")
+
     
-    # Menampilkan hasil perhitungan statistik.
-            print("\nHasil Terbaru")
-            print(f"Jumlah Nilai    = {stats['total']}")
-            print(f"Rata-Rata Nilai = {stats['rata_rata']:.2f}")
-            print(f"Nilai Maksimum  = {stats['maks']}")
-            print(f"Nilai Minimum   = {stats['min']}")
+    def update(self):
+        if not self.df.empty:
+            # Opsi 1: Mengisi NaN dengan 0
+            self.df['nilai'].fillna(0, inplace=True)
+            self.df['Ranking'] = self.df['nilai'].rank(ascending=False, method='dense').astype(int)
+
+            # Opsi 2: Menggunakan pd.Int64Dtype() (pilih salah satu)
+            # self.df['Ranking'] = self.df['nilai'].rank(ascending=False, method='dense').astype('Int64')
+
+            self.df['Keterangan'] = self.df['nilai'].apply(lambda x: "Tuntas" if x >= 80 else "Belum Tuntas")
+            self.simpan_data()
+
+    def tampilkan_data(self):
+        if not self.df.empty:
+            print("\nData Siswa:")
+            print(tabulate(self.df.sort_values('Ranking'), headers='keys', tablefmt='fancy_grid'))
+        else:
+            print("Tidak ada data yang tersedia.")
+
+    def statistik(self):
+        if self.df.empty:
+            print("\nTidak ada data untuk dihitung statistiknya.")
+            return
+
+        stats = {
+            "total": self.df['nilai'].sum(),
+            "rata_rata": self.df['nilai'].mean(),
+            "maks": self.df['nilai'].max(),
+            "mins": self.df['nilai'].min(),
+            "median": self.df['nilai'].median(),
+            "std": self.df['nilai'].std(),
+            "var": self.df['nilai'].var()
+        }
+
+        print("\nHasil Statistik:")
+        for key, value in stats.items():
+            print(f"{key.capitalize()}: {value:.2f}")
+
+    def simpan_data(self):
+        self.df.to_csv(self.FILE_PATH, index=False)
+        print("Data telah disimpan ke dalam CSV.")
+
+    def buat_pdf(self, nama_file):
+        if self.df.empty:
+            print("Tidak ada data untuk dibuat PDF.")
+            return
+
+        fig, ax = plt.subplots(figsize=(12, 4))
+        ax.axis('tight')
+        ax.axis('off')
+        ax.table(cellText=self.df.values, colLabels=self.df.columns, loc='center')
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+        im = Image.open(buf)
+        im.save(nama_file, "PDF", resolution=100.0)
+        buf.close()
+        im.close()
+        print(f"File PDF telah dibuat: {nama_file}")
 
 def main():
-	# Membuat Objek baru
-	df_baru = DataFrameOOP()
-	# Tambah Data
-	df_baru.tambah()
-	# Update Data
-	df_baru.update()
-	# Tampilkan DataFrame
-	df_baru.display_DataFrame()
-	# Statistik
-	df_baru.statistik()
+    data_siswa = DataSiswa()
 
-if __name__=='__main__':
-	main()
+    while True:
+        pilihan = input("\nPilih operasi (tambah/lihat/statistik/pdf/keluar): ").lower()
 
+        if pilihan == 'tambah':
+            data_siswa.tambah()
+            data_siswa.update()
+        elif pilihan == 'lihat':
+            data_siswa.tampilkan_data()
+        elif pilihan == 'statistik':
+            data_siswa.statistik()
+        elif pilihan == 'pdf':
+            data_siswa.buat_pdf("data_siswa.pdf")
+        elif pilihan == 'keluar':
+            break
+        else:
+            print("Pilihan tidak valid.")
+
+if __name__ == '__main__':
+    main()
